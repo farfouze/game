@@ -1,0 +1,351 @@
+<html><head><base href="https://farfouze.github.io/game"><title>FARFOUZE - Cosmic Voyager Game</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+  body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+    background-color: #000;
+    color: #fff;
+    cursor: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
+  #gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  #cursor {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #00ffff;
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: difference;
+    transition: all 0.1s ease;
+  }
+
+  #gameInfo {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 18px;
+    z-index: 100;
+  }
+
+  #score, #level, #asteroidCount {
+    margin-bottom: 10px;
+  }
+
+  #gameOver {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    text-align: center;
+    display: none;
+    z-index: 200;
+  }
+
+  #restartButton {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 24px;
+    background-color: #00ffff;
+    color: #000;
+    border: none;
+    cursor: pointer;
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  #homeButton {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 18px;
+    padding: 8px 16px;
+    z-index: 300;
+    color: #00ffff;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    cursor: none;
+  }
+
+  #homeButton:hover {
+    text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+  }
+
+  @media only screen and (orientation: portrait) {
+    #cursor {
+      display: none;
+    }
+
+    body, html {
+    overflow: auto;
+    cursor: auto;
+    user-select: auto;
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    -ms-user-select: auto;
+    }
+  }
+
+</style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="cursor"></div>
+  <div id="gameInfo">
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="asteroidCount">Asteroids: 0</div>
+  </div>
+  <div id="gameOver">
+    <h2>Game Over</h2>
+    <button id="restartButton">Restart</button>
+  </div>
+  <a href="http://127.0.0.1:5500/farfouze-v3.1-home.html" id="homeButton">> Back to Home</a>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const cursor = document.getElementById('cursor');
+    const scoreElement = document.getElementById('score');
+    const levelElement = document.getElementById('level');
+    const asteroidCountElement = document.getElementById('asteroidCount');
+    const gameOverElement = document.getElementById('gameOver');
+    const restartButton = document.getElementById('restartButton');
+    const homeButton = document.getElementById('homeButton');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let ship = {
+      x: canvas.width / 2,
+      y: canvas.height - 50,
+      width: 40,
+      height: 40,
+      speed: 5
+    };
+
+    let asteroids = [];
+    let lasers = [];
+    let stars = [];
+    let score = 0;
+    let level = 1;
+    let gameIsOver = false;
+
+    function createStar() {
+      return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 2,
+        speed: Math.random() * 0.5 + 0.1
+      };
+    }
+
+    function initStars() {
+      for (let i = 0; i < 100; i++) {
+        stars.push(createStar());
+      }
+    }
+
+    function drawStars() {
+      ctx.fillStyle = '#ffffff';
+      stars.forEach(star => {
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function moveStars() {
+      stars.forEach(star => {
+        star.y += star.speed;
+        if (star.y > canvas.height) {
+          star.y = 0;
+          star.x = Math.random() * canvas.width;
+        }
+      });
+    }
+
+    function drawShip() {
+      ctx.fillStyle = '#00ffff';
+      ctx.beginPath();
+      ctx.moveTo(ship.x, ship.y);
+      ctx.lineTo(ship.x - ship.width / 2, ship.y + ship.height);
+      ctx.lineTo(ship.x + ship.width / 2, ship.y + ship.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawAsteroids() {
+      ctx.fillStyle = '#636363';
+      asteroids.forEach(asteroid => {
+        ctx.beginPath();
+        ctx.arc(asteroid.x, asteroid.y, asteroid.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawLasers() {
+      ctx.fillStyle = '#00ffff';
+      lasers.forEach(laser => {
+        ctx.fillRect(laser.x, laser.y, 3, 15);
+      });
+    }
+
+    function moveAsteroids() {
+      asteroids.forEach((asteroid, index) => {
+        asteroid.y += asteroid.speed;
+        if (asteroid.y > canvas.height) {
+          asteroids.splice(index, 1);
+        }
+      });
+    }
+
+    function moveLasers() {
+      lasers.forEach((laser, index) => {
+        laser.y -= 10;
+        if (laser.y < 0) {
+          lasers.splice(index, 1);
+        }
+      });
+    }
+
+    function createAsteroid() {
+      return {
+        x: Math.random() * canvas.width,
+        y: -30,
+        size: Math.random() * 20 + 10,
+        speed: Math.random() * 2 + 1 + level * 0.5
+      };
+    }
+
+    function checkCollisions() {
+      asteroids.forEach((asteroid, asteroidIndex) => {
+        const dx = ship.x - asteroid.x;
+        const dy = ship.y - asteroid.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < asteroid.size + ship.width / 2) {
+          gameOver();
+        }
+
+        lasers.forEach((laser, laserIndex) => {
+          const laserDx = laser.x - asteroid.x;
+          const laserDy = laser.y - asteroid.y;
+          const laserDistance = Math.sqrt(laserDx * laserDx + laserDy * laserDy);
+          if (laserDistance < asteroid.size) {
+            asteroids.splice(asteroidIndex, 1);
+            lasers.splice(laserIndex, 1);
+            score += 10;
+            updateScore();
+          }
+        });
+      });
+    }
+
+    function gameOver() {
+      gameIsOver = true;
+      gameOverElement.style.display = 'block';
+    }
+
+    function updateScore() {
+      scoreElement.textContent = `Score: ${score}`;
+      if (score % 100 === 0) {
+        level++;
+        levelElement.textContent = `Level: ${level}`;
+      }
+    }
+
+    function spawnAsteroids() {
+      if (asteroids.length < level + 2) {
+        asteroids.push(createAsteroid());
+      }
+    }
+
+    function gameLoop() {
+      if (gameIsOver) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      drawStars();
+      moveStars();
+      drawShip();
+      drawAsteroids();
+      drawLasers();
+      moveAsteroids();
+      moveLasers();
+      checkCollisions();
+      spawnAsteroids();
+
+      asteroidCountElement.textContent = `Asteroids: ${asteroids.length}`;
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      ship.x = e.clientX;
+      cursor.style.left = e.clientX + 'px';
+      cursor.style.top = e.clientY + 'px';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (e.target !== homeButton && e.target !== restartButton) {
+        lasers.push({
+          x: ship.x,
+          y: ship.y
+        });
+      }
+    });
+
+    restartButton.addEventListener('click', () => {
+      asteroids = [createAsteroid(), createAsteroid(), createAsteroid()];
+      lasers = [];
+      score = 0;
+      level = 1;
+      gameIsOver = false;
+      gameOverElement.style.display = 'none';
+      scoreElement.textContent = 'Score: 0';
+      levelElement.textContent = 'Level: 1';
+      asteroidCountElement.textContent = 'Asteroids: 3';
+      gameLoop();
+    });
+
+    homeButton.addEventListener('mouseover', () => {
+      cursor.style.width = '30px';
+      cursor.style.height = '30px';
+    });
+
+    homeButton.addEventListener('mouseout', () => {
+      cursor.style.width = '20px';
+      cursor.style.height = '20px';
+    });
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      ship.x = canvas.width / 2;
+      ship.y = canvas.height - 50;
+      initStars();
+    });
+
+    asteroids = [createAsteroid(), createAsteroid(), createAsteroid()];
+    initStars();
+    gameLoop();
+  </script>
+</body></html>
